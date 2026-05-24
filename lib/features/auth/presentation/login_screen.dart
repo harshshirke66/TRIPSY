@@ -17,9 +17,20 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _fullNameController = TextEditingController();
   final TextEditingController _usernameController = TextEditingController();
+  final TextEditingController _bioController = TextEditingController();
+  final TextEditingController _avatarUrlController = TextEditingController();
   String _selectedGender = 'Male';
+  String? _selectedAvatarUrl;
   bool _isLoading = false;
   bool _isSignUp = false;
+  bool _showProfileSetup = false;
+
+  final List<String> _avatarPresets = [
+    'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150', // Young man
+    'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150', // Young woman
+    'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150', // Smiling man
+    'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150', // Confident woman
+  ];
 
   @override
   void dispose() {
@@ -27,6 +38,8 @@ class _LoginScreenState extends State<LoginScreen> {
     _passwordController.dispose();
     _fullNameController.dispose();
     _usernameController.dispose();
+    _bioController.dispose();
+    _avatarUrlController.dispose();
     super.dispose();
   }
 
@@ -71,12 +84,10 @@ class _LoginScreenState extends State<LoginScreen> {
         if (mounted) {
           setState(() {
             _isLoading = false;
+            _showProfileSetup = true;
           });
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Account created! Welcome to Tripsy.')),
-          );
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (context) => const HomeNavigationScaffold()),
+            const SnackBar(content: Text('Account created! Now, let\'s personalize your profile.')),
           );
         }
       } else {
@@ -97,6 +108,53 @@ class _LoginScreenState extends State<LoginScreen> {
         });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Auth Error: ${e.toString()}')),
+        );
+      }
+    }
+  }
+
+  Future<void> _handleProfileSetup() async {
+    final bio = _bioController.text.trim();
+    final avatarUrl = _avatarUrlController.text.trim();
+
+    if (avatarUrl.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select or input a profile photo.')),
+      );
+      return;
+    }
+
+    if (bio.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please write a short bio.')),
+      );
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      await SupabaseService.instance.completeProfileSetup(
+        bio: bio,
+        avatarUrl: avatarUrl,
+      );
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => const HomeNavigationScaffold()),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Profile Setup Error: ${e.toString()}')),
         );
       }
     }
@@ -167,7 +225,9 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     const SizedBox(height: 32),
                     Text(
-                      _isSignUp ? 'Create Account' : 'Let\'s Connect',
+                      _showProfileSetup
+                          ? 'Profile Setup'
+                          : (_isSignUp ? 'Create Account' : 'Let\'s Connect'),
                       style: const TextStyle(
                         fontSize: 34,
                         fontWeight: FontWeight.w900,
@@ -177,9 +237,11 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      _isSignUp
-                          ? 'Sign up to discover and match with travel partners worldwide.'
-                          : 'Sign in to match with travel companions around the globe.',
+                      _showProfileSetup
+                          ? 'Choose your avatar and write a bio to introduce yourself.'
+                          : (_isSignUp
+                              ? 'Sign up to discover and match with travel partners worldwide.'
+                              : 'Sign in to match with travel companions around the globe.'),
                       style: const TextStyle(
                         fontSize: 14,
                         color: TripsyColors.textSecondary,
@@ -199,7 +261,9 @@ class _LoginScreenState extends State<LoginScreen> {
                               color: Colors.white.withValues(alpha: 0.06),
                               width: 1.0,
                             ),
-                            child: Column(
+                            child: _showProfileSetup
+                                ? _buildProfileSetupForm()
+                                : Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 // Email Login Form
@@ -389,6 +453,113 @@ class _LoginScreenState extends State<LoginScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildProfileSetupForm() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Select an Avatar',
+          style: TextStyle(
+            color: TripsyColors.textSecondary,
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: _avatarPresets.map((url) {
+            final isSelected = _selectedAvatarUrl == url;
+            return GestureDetector(
+              onTap: () {
+                setState(() {
+                  _selectedAvatarUrl = url;
+                  _avatarUrlController.text = url;
+                });
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 250),
+                width: 58,
+                height: 58,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: isSelected ? TripsyColors.sunsetOrange : Colors.white.withValues(alpha: 0.1),
+                    width: isSelected ? 3.0 : 1.5,
+                  ),
+                  boxShadow: isSelected
+                      ? [
+                          BoxShadow(
+                            color: TripsyColors.sunsetOrange.withValues(alpha: 0.35),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
+                          )
+                        ]
+                      : [],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(29),
+                  child: Image.network(
+                    url,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+        const SizedBox(height: 16),
+        _buildTextField(
+          controller: _avatarUrlController,
+          hintText: 'Or paste custom image URL',
+          icon: Icons.link_rounded,
+        ),
+        const SizedBox(height: 20),
+        const Text(
+          'Share your Bio',
+          style: TextStyle(
+            color: TripsyColors.textSecondary,
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _bioController,
+          maxLines: 3,
+          maxLength: 200,
+          style: const TextStyle(color: Colors.white),
+          decoration: InputDecoration(
+            hintText: 'Describe your travel vibes, budget, and destination goals...',
+            hintStyle: const TextStyle(color: TripsyColors.textMuted, fontSize: 14),
+            prefixIcon: const Icon(Icons.notes_rounded, color: TripsyColors.textMuted, size: 20),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(18),
+              borderSide: BorderSide(
+                color: Colors.white.withValues(alpha: 0.06),
+              ),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(18),
+              borderSide: const BorderSide(
+                color: TripsyColors.sunsetOrange,
+                width: 1.5,
+              ),
+            ),
+            fillColor: Colors.white.withValues(alpha: 0.03),
+            filled: true,
+          ),
+        ),
+        const SizedBox(height: 20),
+        _buildGradientButton(
+          onPressed: _handleProfileSetup,
+          label: _isLoading ? 'Saving...' : 'Complete Profile & Start Swiping',
+        ),
+      ],
     );
   }
 

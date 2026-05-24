@@ -85,6 +85,16 @@ class SupabaseService {
     await client.auth.signOut();
   }
 
+  Future<void> completeProfileSetup({required String bio, required String avatarUrl}) async {
+    final user = client.auth.currentUser;
+    if (user != null) {
+      await client.from('profiles').update({
+        'bio': bio,
+        'avatar_url': avatarUrl,
+      }).eq('id', user.id);
+    }
+  }
+
   // --- DATABASE SERVICES ---
 
   Future<Profile> getCurrentUser() async {
