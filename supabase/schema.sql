@@ -300,3 +300,142 @@ drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute procedure public.handle_new_user();
+
+-- =========================================================================
+-- STORAGE BUCKETS & POLICIES SETUP
+-- =========================================================================
+
+-- Create buckets for different types of images/media
+insert into storage.buckets (id, name, public)
+values 
+  ('avatars', 'avatars', true),
+  ('stories', 'stories', true),
+  ('chat_media', 'chat_media', true),
+  ('trip_covers', 'trip_covers', true)
+on conflict (id) do nothing;
+
+-- Enable RLS on storage.objects
+alter table storage.objects enable row level security;
+
+-- Storage Policies for Avatars (Profile Photos / Gallery)
+drop policy if exists "Public access to avatars" on storage.objects;
+create policy "Public access to avatars"
+  on storage.objects for select
+  using (bucket_id = 'avatars');
+
+drop policy if exists "Authenticated users can upload avatars" on storage.objects;
+create policy "Authenticated users can upload avatars"
+  on storage.objects for insert
+  with check (
+    bucket_id = 'avatars' 
+    and auth.role() = 'authenticated'
+    and auth.uid()::text = (storage.foldername(name))[1]
+  );
+
+drop policy if exists "Users can update their own avatars" on storage.objects;
+create policy "Users can update their own avatars"
+  on storage.objects for update
+  using (
+    bucket_id = 'avatars' 
+    and auth.role() = 'authenticated'
+    and auth.uid()::text = (storage.foldername(name))[1]
+  );
+
+drop policy if exists "Users can delete their own avatars" on storage.objects;
+create policy "Users can delete their own avatars"
+  on storage.objects for delete
+  using (
+    bucket_id = 'avatars' 
+    and auth.role() = 'authenticated'
+    and auth.uid()::text = (storage.foldername(name))[1]
+  );
+
+-- Storage Policies for Stories
+drop policy if exists "Public access to stories" on storage.objects;
+create policy "Public access to stories"
+  on storage.objects for select
+  using (bucket_id = 'stories');
+
+drop policy if exists "Authenticated users can upload stories" on storage.objects;
+create policy "Authenticated users can upload stories"
+  on storage.objects for insert
+  with check (
+    bucket_id = 'stories' 
+    and auth.role() = 'authenticated'
+    and auth.uid()::text = (storage.foldername(name))[1]
+  );
+
+drop policy if exists "Users can update their own stories" on storage.objects;
+create policy "Users can update their own stories"
+  on storage.objects for update
+  using (
+    bucket_id = 'stories' 
+    and auth.role() = 'authenticated'
+    and auth.uid()::text = (storage.foldername(name))[1]
+  );
+
+drop policy if exists "Users can delete their own stories" on storage.objects;
+create policy "Users can delete their own stories"
+  on storage.objects for delete
+  using (
+    bucket_id = 'stories' 
+    and auth.role() = 'authenticated'
+    and auth.uid()::text = (storage.foldername(name))[1]
+  );
+
+-- Storage Policies for Chat Media
+drop policy if exists "Public access to chat media" on storage.objects;
+create policy "Public access to chat media"
+  on storage.objects for select
+  using (bucket_id = 'chat_media');
+
+drop policy if exists "Authenticated users can upload chat media" on storage.objects;
+create policy "Authenticated users can upload chat media"
+  on storage.objects for insert
+  with check (
+    bucket_id = 'chat_media' 
+    and auth.role() = 'authenticated'
+    and auth.uid()::text = (storage.foldername(name))[1]
+  );
+
+drop policy if exists "Users can delete their own chat media" on storage.objects;
+create policy "Users can delete their own chat media"
+  on storage.objects for delete
+  using (
+    bucket_id = 'chat_media' 
+    and auth.role() = 'authenticated'
+    and auth.uid()::text = (storage.foldername(name))[1]
+  );
+
+-- Storage Policies for Trip Covers
+drop policy if exists "Public access to trip covers" on storage.objects;
+create policy "Public access to trip covers"
+  on storage.objects for select
+  using (bucket_id = 'trip_covers');
+
+drop policy if exists "Authenticated users can upload trip covers" on storage.objects;
+create policy "Authenticated users can upload trip covers"
+  on storage.objects for insert
+  with check (
+    bucket_id = 'trip_covers' 
+    and auth.role() = 'authenticated'
+    and auth.uid()::text = (storage.foldername(name))[1]
+  );
+
+drop policy if exists "Users can update their own trip covers" on storage.objects;
+create policy "Users can update their own trip covers"
+  on storage.objects for update
+  using (
+    bucket_id = 'trip_covers' 
+    and auth.role() = 'authenticated'
+    and auth.uid()::text = (storage.foldername(name))[1]
+  );
+
+drop policy if exists "Users can delete their own trip covers" on storage.objects;
+create policy "Users can delete their own trip covers"
+  on storage.objects for delete
+  using (
+    bucket_id = 'trip_covers' 
+    and auth.role() = 'authenticated'
+    and auth.uid()::text = (storage.foldername(name))[1]
+  );
