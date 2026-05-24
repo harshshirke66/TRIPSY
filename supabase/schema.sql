@@ -314,9 +314,6 @@ values
   ('trip_covers', 'trip_covers', true)
 on conflict (id) do nothing;
 
--- Enable RLS on storage.objects
-alter table storage.objects enable row level security;
-
 -- Storage Policies for Avatars (Profile Photos / Gallery)
 drop policy if exists "Public access to avatars" on storage.objects;
 create policy "Public access to avatars"
