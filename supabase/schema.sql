@@ -156,10 +156,12 @@ create policy "Users can view their own swipes" on public.swipes for select usin
 create policy "Users can insert their own swipes" on public.swipes for insert with check (auth.uid() = swiper_id);
 
 create policy "Users can view matches they are part of" on public.matches for select using (auth.uid() = user1_id or auth.uid() = user2_id);
+create policy "Users can insert matches they are part of" on public.matches for insert with check (auth.uid() = user1_id or auth.uid() = user2_id);
 
 create policy "Users can view chats they are members of" on public.chats for select using (
   exists (select 1 from public.chat_members where chat_id = id and profile_id = auth.uid())
 );
+create policy "Anyone authenticated can create chats" on public.chats for insert with check (true);
 create policy "Users can insert chat membership details" on public.chat_members for insert with check (auth.uid() = profile_id);
 
 create policy "Users can view messages for their active chats" on public.messages for select using (
@@ -190,6 +192,9 @@ create policy "Members can add expenses to trip" on public.trip_expenses for ins
 );
 
 create policy "Members can view itinerary" on public.trip_itinerary for select using (
+  exists (select 1 from public.trip_members where trip_id = trip_itinerary.trip_id and profile_id = auth.uid())
+);
+create policy "Members can add itinerary items" on public.trip_itinerary for insert with check (
   exists (select 1 from public.trip_members where trip_id = trip_itinerary.trip_id and profile_id = auth.uid())
 );
 
