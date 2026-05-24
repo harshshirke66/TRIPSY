@@ -244,7 +244,28 @@ create policy "Users can update their notifications" on public.notifications for
 -- Trigger function to automatically copy new users to the profiles table
 create or replace function public.handle_new_user()
 returns trigger as $$
+declare
+  username_val text;
+  base_username text;
+  counter integer := 0;
 begin
+  base_username := coalesce(
+    new.raw_user_meta_data->>'username',
+    split_part(new.email, '@', 1),
+    'traveler'
+  );
+  if base_username = '' then
+    base_username := 'traveler';
+  end if;
+
+  username_val := base_username;
+
+  -- Loop to guarantee username uniqueness
+  while exists(select 1 from public.profiles where username = username_val) loop
+    counter := counter + 1;
+    username_val := base_username || counter::text || '_' || substr(md5(random()::text), 1, 4);
+  end loop;
+
   insert into public.profiles (
     id,
     username,
@@ -264,13 +285,11 @@ begin
   )
   values (
     new.id,
-    coalesce(
-      new.raw_user_meta_data->>'username',
-      split_part(new.email, '@', 1) || '_' || substr(md5(random()::text), 1, 6)
-    ),
+    username_val,
     coalesce(
       new.raw_user_meta_data->>'full_name',
-      split_part(new.email, '@', 1)
+      split_part(new.email, '@', 1),
+      'Traveler'
     ),
     coalesce(
       new.raw_user_meta_data->>'avatar_url',
@@ -290,8 +309,14 @@ begin
     0.0,
     0.0,
     '{}'::jsonb
-  );
+  )
+  on conflict (id) do nothing;
+  
   return new;
+exception
+  when others then
+    -- Catch any potential errors to guarantee that auth signup is never blocked
+    return new;
 end;
 $$ language plpgsql security definer;
 
