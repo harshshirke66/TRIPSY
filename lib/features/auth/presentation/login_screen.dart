@@ -16,6 +16,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _isLoading = false;
+  bool _isSignUp = false;
 
   @override
   void dispose() {
@@ -24,7 +25,7 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  Future<void> _handleEmailLogin() async {
+  Future<void> _handleEmailAuth() async {
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
 
@@ -40,18 +41,7 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      await SupabaseService.instance.signInWithEmail(email, password);
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => const HomeNavigationScaffold()),
-        );
-      }
-    } catch (e) {
-      // Automatic sign-up fallback for testing new users
-      try {
+      if (_isSignUp) {
         await SupabaseService.instance.signUpWithEmail(email, password);
         if (mounted) {
           setState(() {
@@ -64,15 +54,25 @@ class _LoginScreenState extends State<LoginScreen> {
             MaterialPageRoute(builder: (context) => const HomeNavigationScaffold()),
           );
         }
-      } catch (signUpError) {
+      } else {
+        await SupabaseService.instance.signInWithEmail(email, password);
         if (mounted) {
           setState(() {
             _isLoading = false;
           });
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Auth Error: ${signUpError.toString()}')),
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (context) => const HomeNavigationScaffold()),
           );
         }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Auth Error: ${e.toString()}')),
+        );
       }
     }
   }
@@ -141,9 +141,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       ],
                     ),
                     const SizedBox(height: 32),
-                    const Text(
-                      'Let\'s Connect',
-                      style: TextStyle(
+                    Text(
+                      _isSignUp ? 'Create Account' : 'Let\'s Connect',
+                      style: const TextStyle(
                         fontSize: 34,
                         fontWeight: FontWeight.w900,
                         letterSpacing: -0.5,
@@ -151,9 +151,11 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    const Text(
-                      'Sign in to match with travel companions around the globe.',
-                      style: TextStyle(
+                    Text(
+                      _isSignUp
+                          ? 'Sign up to discover and match with travel partners worldwide.'
+                          : 'Sign in to match with travel companions around the globe.',
+                      style: const TextStyle(
                         fontSize: 14,
                         color: TripsyColors.textSecondary,
                       ),
@@ -192,8 +194,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                 // Main Action Button
                                 const SizedBox(height: 24),
                                 _buildGradientButton(
-                                  onPressed: _handleEmailLogin,
-                                  label: _isLoading ? 'Loading...' : 'Sign In',
+                                  onPressed: _handleEmailAuth,
+                                  label: _isLoading ? 'Loading...' : (_isSignUp ? 'Sign Up' : 'Sign In'),
                                 ),
 
                                 const SizedBox(height: 24),
@@ -214,7 +216,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
                                 // Google Sign in
                                 GestureDetector(
-                                  onTap: _handleEmailLogin,
+                                  onTap: _handleEmailAuth,
                                   child: Container(
                                     height: 56,
                                     decoration: BoxDecoration(
@@ -239,6 +241,36 @@ class _LoginScreenState extends State<LoginScreen> {
                                             fontSize: 15,
                                             fontWeight: FontWeight.w800,
                                             color: Colors.white,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+
+                                const SizedBox(height: 16),
+                                // Sign Up Toggle Option
+                                TextButton(
+                                  onPressed: () {
+                                    setState(() {
+                                      _isSignUp = !_isSignUp;
+                                    });
+                                  },
+                                  style: TextButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(vertical: 8),
+                                  ),
+                                  child: RichText(
+                                    text: TextSpan(
+                                      style: const TextStyle(fontSize: 14, color: TripsyColors.textSecondary),
+                                      children: [
+                                        TextSpan(
+                                          text: _isSignUp ? 'Already have an account? ' : 'Don\'t have an account? ',
+                                        ),
+                                        TextSpan(
+                                          text: _isSignUp ? 'Sign In' : 'Sign Up',
+                                          style: const TextStyle(
+                                            color: TripsyColors.sunsetOrange,
+                                            fontWeight: FontWeight.w800,
                                           ),
                                         ),
                                       ],
