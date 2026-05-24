@@ -35,19 +35,36 @@ class SupabaseService {
     return await client.auth.signInWithPassword(email: email, password: password);
   }
 
-  Future<AuthResponse> signUpWithEmail(String email, String password) async {
-    final response = await client.auth.signUp(email: email, password: password);
+  Future<AuthResponse> signUpWithEmail({
+    required String email,
+    required String password,
+    String? fullName,
+    String? username,
+    String? gender,
+  }) async {
+    final response = await client.auth.signUp(
+      email: email,
+      password: password,
+      data: {
+        'full_name': fullName,
+        'username': username,
+        'gender': gender,
+      }..removeWhere((_, value) => value == null),
+    );
     final user = response.user;
     if (user != null) {
-      final username = '${email.split('@')[0]}_${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}';
+      final finalUsername = username ?? '${email.split('@')[0]}_${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}';
+      final finalFullName = fullName ?? email.split('@')[0];
+      final finalGender = gender ?? 'Not specified';
+
       final defaultProfile = Profile(
         id: user.id,
-        username: username,
-        fullName: email.split('@')[0],
+        username: finalUsername,
+        fullName: finalFullName,
         avatarUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
         images: [],
         bio: 'Hello! I am new to Tripsy.',
-        gender: 'Not specified',
+        gender: finalGender,
         travelInterests: [],
         destinationPreferences: [],
         budgetStyle: 'moderate',
@@ -59,7 +76,7 @@ class SupabaseService {
         socialLinks: {},
         createdAt: DateTime.now(),
       );
-      await client.from('profiles').insert(defaultProfile.toJson());
+      await client.from('profiles').upsert(defaultProfile.toJson());
     }
     return response;
   }

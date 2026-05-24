@@ -150,6 +150,7 @@ alter table public.notifications enable row level security;
 -- Setup basic public policies
 create policy "Public profiles are viewable by everyone" on public.profiles for select using (true);
 create policy "Users can update their own profile" on public.profiles for update using (auth.uid() = id);
+create policy "Users can insert their own profile" on public.profiles for insert with check (auth.uid() = id);
 
 create policy "Users can view their own swipes" on public.swipes for select using (auth.uid() = swiper_id);
 create policy "Users can insert their own swipes" on public.swipes for insert with check (auth.uid() = swiper_id);
@@ -197,3 +198,63 @@ create policy "Users can publish stories" on public.stories for insert with chec
 
 create policy "Users can view their notifications" on public.notifications for select using (auth.uid() = profile_id);
 create policy "Users can update their notifications" on public.notifications for update using (auth.uid() = profile_id);
+
+-- Trigger function to automatically copy new users to the profiles table
+create or replace function public.handle_new_user()
+returns trigger as $$
+begin
+  insert into public.profiles (
+    id,
+    username,
+    full_name,
+    avatar_url,
+    bio,
+    gender,
+    travel_interests,
+    destination_preferences,
+    budget_style,
+    languages,
+    personality_tags,
+    is_verified,
+    latitude,
+    longitude,
+    social_links
+  )
+  values (
+    new.id,
+    coalesce(
+      new.raw_user_meta_data->>'username',
+      split_part(new.email, '@', 1) || '_' || substr(md5(random()::text), 1, 6)
+    ),
+    coalesce(
+      new.raw_user_meta_data->>'full_name',
+      split_part(new.email, '@', 1)
+    ),
+    coalesce(
+      new.raw_user_meta_data->>'avatar_url',
+      'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150'
+    ),
+    'Hello! I am new to Tripsy.',
+    coalesce(
+      new.raw_user_meta_data->>'gender',
+      'Not specified'
+    ),
+    array[]::text[],
+    array[]::text[],
+    'moderate',
+    array['English']::text[],
+    array[]::text[],
+    false,
+    0.0,
+    0.0,
+    '{}'::jsonb
+  );
+  return new;
+end;
+$$ language plpgsql security definer;
+
+-- Recreate trigger to invoke handle_new_user on auth.users inserts
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute procedure public.handle_new_user();

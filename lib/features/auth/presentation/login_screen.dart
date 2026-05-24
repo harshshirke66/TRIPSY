@@ -15,6 +15,9 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _fullNameController = TextEditingController();
+  final TextEditingController _usernameController = TextEditingController();
+  String _selectedGender = 'Male';
   bool _isLoading = false;
   bool _isSignUp = false;
 
@@ -22,6 +25,8 @@ class _LoginScreenState extends State<LoginScreen> {
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
+    _fullNameController.dispose();
+    _usernameController.dispose();
     super.dispose();
   }
 
@@ -36,13 +41,33 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
+    String? fullName;
+    String? username;
+    if (_isSignUp) {
+      fullName = _fullNameController.text.trim();
+      username = _usernameController.text.trim();
+
+      if (fullName.isEmpty || username.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please enter your full name and username.')),
+        );
+        return;
+      }
+    }
+
     setState(() {
       _isLoading = true;
     });
 
     try {
       if (_isSignUp) {
-        await SupabaseService.instance.signUpWithEmail(email, password);
+        await SupabaseService.instance.signUpWithEmail(
+          email: email,
+          password: password,
+          fullName: fullName,
+          username: username,
+          gender: _selectedGender,
+        );
         if (mounted) {
           setState(() {
             _isLoading = false;
@@ -190,6 +215,80 @@ class _LoginScreenState extends State<LoginScreen> {
                                   icon: Icons.lock_outline_rounded,
                                   isPassword: true,
                                 ),
+                                if (_isSignUp) ...[
+                                  const SizedBox(height: 16),
+                                  _buildTextField(
+                                    controller: _fullNameController,
+                                    hintText: 'Enter your Full Name',
+                                    icon: Icons.person_outline_rounded,
+                                  ),
+                                  const SizedBox(height: 16),
+                                  _buildTextField(
+                                    controller: _usernameController,
+                                    hintText: 'Choose a Username',
+                                    icon: Icons.alternate_email_rounded,
+                                  ),
+                                  const SizedBox(height: 20),
+                                  const Align(
+                                    alignment: Alignment.centerLeft,
+                                    child: Text(
+                                      'Select Gender',
+                                      style: TextStyle(
+                                        color: TripsyColors.textSecondary,
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: ['Male', 'Female', 'Non-binary', 'Other'].map((gender) {
+                                      final isSelected = _selectedGender == gender;
+                                      return Expanded(
+                                        child: GestureDetector(
+                                          onTap: () {
+                                            setState(() {
+                                              _selectedGender = gender;
+                                            });
+                                          },
+                                          child: AnimatedContainer(
+                                            duration: const Duration(milliseconds: 250),
+                                            margin: const EdgeInsets.symmetric(horizontal: 4.0),
+                                            padding: const EdgeInsets.symmetric(vertical: 12),
+                                            alignment: Alignment.center,
+                                            decoration: BoxDecoration(
+                                              gradient: isSelected ? TripsyColors.sunsetGradient : null,
+                                              color: isSelected ? null : Colors.white.withValues(alpha: 0.04),
+                                              borderRadius: BorderRadius.circular(14),
+                                              border: Border.all(
+                                                color: isSelected ? TripsyColors.sunsetOrange : Colors.white.withValues(alpha: 0.08),
+                                                width: 1.0,
+                                              ),
+                                              boxShadow: isSelected
+                                                  ? [
+                                                      BoxShadow(
+                                                        color: TripsyColors.sunsetOrange.withValues(alpha: 0.25),
+                                                        blurRadius: 10,
+                                                        offset: const Offset(0, 4),
+                                                      )
+                                                    ]
+                                                  : [],
+                                            ),
+                                            child: Text(
+                                              gender,
+                                              style: TextStyle(
+                                                color: isSelected ? Colors.white : TripsyColors.textSecondary,
+                                                fontSize: 12,
+                                                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      );
+                                    }).toList(),
+                                  ),
+                                ],
 
                                 // Main Action Button
                                 const SizedBox(height: 24),
