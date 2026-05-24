@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:tripsy/core/models/profile_model.dart';
 import 'package:tripsy/core/models/chat_model.dart';
@@ -93,6 +94,22 @@ class SupabaseService {
         'avatar_url': avatarUrl,
       }).eq('id', user.id);
     }
+  }
+
+  Future<String> uploadProfilePhoto(Uint8List bytes, String fileName) async {
+    final user = client.auth.currentUser;
+    if (user == null) throw Exception("User not authenticated.");
+
+    final path = '${user.id}/$fileName';
+    await client.storage.from('avatars').uploadBinary(
+      path,
+      bytes,
+      fileOptions: const FileOptions(
+        cacheControl: '3600',
+        upsert: true,
+      ),
+    );
+    return client.storage.from('avatars').getPublicUrl(path);
   }
 
   // --- DATABASE SERVICES ---

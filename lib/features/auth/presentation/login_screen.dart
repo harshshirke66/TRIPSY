@@ -1,4 +1,6 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:tripsy/core/theme/colors.dart';
 import 'package:tripsy/core/widgets/glass_container.dart';
 import 'package:tripsy/core/widgets/aurora_background.dart';
@@ -18,19 +20,13 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _fullNameController = TextEditingController();
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _bioController = TextEditingController();
-  final TextEditingController _avatarUrlController = TextEditingController();
   String _selectedGender = 'Male';
-  String? _selectedAvatarUrl;
   bool _isLoading = false;
   bool _isSignUp = false;
   bool _showProfileSetup = false;
 
-  final List<String> _avatarPresets = [
-    'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150', // Young man
-    'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150', // Young woman
-    'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150', // Smiling man
-    'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150', // Confident woman
-  ];
+  Uint8List? _pickedImageBytes;
+  String? _pickedImageName;
 
   @override
   void dispose() {
@@ -39,7 +35,6 @@ class _LoginScreenState extends State<LoginScreen> {
     _fullNameController.dispose();
     _usernameController.dispose();
     _bioController.dispose();
-    _avatarUrlController.dispose();
     super.dispose();
   }
 
@@ -115,11 +110,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _handleProfileSetup() async {
     final bio = _bioController.text.trim();
-    final avatarUrl = _avatarUrlController.text.trim();
 
-    if (avatarUrl.isEmpty) {
+    if (_pickedImageBytes == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select or input a profile photo.')),
+        const SnackBar(content: Text('Please select a profile photo.')),
       );
       return;
     }
@@ -136,10 +130,18 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
+      // 1. Upload photo to Supabase Storage
+      final avatarUrl = await SupabaseService.instance.uploadProfilePhoto(
+        _pickedImageBytes!,
+        _pickedImageName ?? 'profile.jpg',
+      );
+
+      // 2. Save profile setup in Database
       await SupabaseService.instance.completeProfileSetup(
         bio: bio,
         avatarUrl: avatarUrl,
       );
+
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -459,72 +461,81 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget _buildProfileSetupForm() {
     return Column(
       mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        const Text(
-          'Select an Avatar',
-          style: TextStyle(
-            color: TripsyColors.textSecondary,
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
+        const Align(
+          alignment: Alignment.centerLeft,
+          child: Text(
+            'Upload Profile Photo',
+            style: TextStyle(
+              color: TripsyColors.textSecondary,
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ),
-        const SizedBox(height: 12),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: _avatarPresets.map((url) {
-            final isSelected = _selectedAvatarUrl == url;
-            return GestureDetector(
-              onTap: () {
-                setState(() {
-                  _selectedAvatarUrl = url;
-                  _avatarUrlController.text = url;
-                });
-              },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 250),
-                width: 58,
-                height: 58,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: isSelected ? TripsyColors.sunsetOrange : Colors.white.withValues(alpha: 0.1),
-                    width: isSelected ? 3.0 : 1.5,
-                  ),
-                  boxShadow: isSelected
-                      ? [
-                          BoxShadow(
-                            color: TripsyColors.sunsetOrange.withValues(alpha: 0.35),
-                            blurRadius: 12,
-                            offset: const Offset(0, 4),
-                          )
-                        ]
-                      : [],
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(29),
-                  child: Image.network(
-                    url,
-                    fit: BoxFit.cover,
-                  ),
-                ),
-              ),
-            );
-          }).toList(),
-        ),
         const SizedBox(height: 16),
-        _buildTextField(
-          controller: _avatarUrlController,
-          hintText: 'Or paste custom image URL',
-          icon: Icons.link_rounded,
+        GestureDetector(
+          onTap: _pickProfileImage,
+          child: Container(
+            width: 120,
+            height: 120,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.white.withValues(alpha: 0.04),
+              border: Border.all(
+                color: _pickedImageBytes != null ? TripsyColors.sunsetOrange : Colors.white.withValues(alpha: 0.1),
+                width: _pickedImageBytes != null ? 3.0 : 1.5,
+              ),
+              boxShadow: _pickedImageBytes != null
+                  ? [
+                      BoxShadow(
+                        color: TripsyColors.sunsetOrange.withValues(alpha: 0.25),
+                        blurRadius: 16,
+                        offset: const Offset(0, 6),
+                      )
+                    ]
+                  : [],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(60),
+              child: _pickedImageBytes != null
+                  ? Image.memory(
+                      _pickedImageBytes!,
+                      fit: BoxFit.cover,
+                    )
+                  : Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.camera_alt_rounded,
+                          color: TripsyColors.textSecondary,
+                          size: 32,
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Tap to upload',
+                          style: TextStyle(
+                            color: TripsyColors.textMuted,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+            ),
+          ),
         ),
-        const SizedBox(height: 20),
-        const Text(
-          'Share your Bio',
-          style: TextStyle(
-            color: TripsyColors.textSecondary,
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
+        const SizedBox(height: 24),
+        const Align(
+          alignment: Alignment.centerLeft,
+          child: Text(
+            'Share your Bio',
+            style: TextStyle(
+              color: TripsyColors.textSecondary,
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ),
         const SizedBox(height: 12),
@@ -561,6 +572,31 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
       ],
     );
+  }
+
+  Future<void> _pickProfileImage() async {
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? image = await picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 500,
+        maxHeight: 500,
+        imageQuality: 85,
+      );
+      if (image != null) {
+        final bytes = await image.readAsBytes();
+        setState(() {
+          _pickedImageBytes = bytes;
+          _pickedImageName = image.name;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error picking image: $e')),
+        );
+      }
+    }
   }
 
   Widget _buildTextField({
